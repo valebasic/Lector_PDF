@@ -129,8 +129,19 @@ export default function App() {
               />
             )}
             {currentView === 'notes' && (
-              <NotesView />
-            )}
+  <NotesView 
+    onSelectBookAndPage={(book, page) => {
+      // Aseguramos el formato del enlace del PDF
+      const formattedBook = {
+        ...book,
+        pdfUrl: book.pdfUrl || book.pdf_url
+      };
+      setCurrentBook(formattedBook);
+      setCurrentView('library'); // Regresa a la vista del lector con el libro abierto
+      // Opcional: puedes pasar la página inicial si tu lector lo soporta
+    }}
+  />
+)}
           </main>
         </>
       )}
