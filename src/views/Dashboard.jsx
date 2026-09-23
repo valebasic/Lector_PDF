@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import BookCard from '../components/BookCard';
 import AddBookModal from '../components/AddBookModal';
 
-export default function Dashboard({ books, onSelectBook, onAddBook }) {
+export default function Dashboard({ books, onSelectBook, onAddBook, onDeleteBook }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('Todos');
 
@@ -62,6 +62,7 @@ export default function Dashboard({ books, onSelectBook, onAddBook }) {
                   key={book.id} 
                   book={book} 
                   onRead={() => onSelectBook(book)} 
+                  onDelete={onDeleteBook}
                 />
               ))
             )}

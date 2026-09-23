@@ -26,7 +26,6 @@ export default function App() {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        // Mapeamos para asegurarnos de que pdfUrl exista para el visor
         const formattedBooks = data.map(b => ({
           ...b,
           pdfUrl: b.pdfUrl || b.pdf_url
@@ -67,6 +66,28 @@ export default function App() {
     }
   };
 
+  const handleDeleteBook = async (bookId) => {
+    // Si es un libro por defecto o un ID numérico temporal creado en local
+    if (!bookId || typeof bookId === 'number' || bookId.toString().startsWith('default') || bookId === '1' || bookId.toString().length < 15) {
+      setBooks(books.filter(b => b.id !== bookId));
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('books')
+        .delete()
+        .eq('id', bookId);
+
+      if (error) throw error;
+
+      setBooks(books.filter(b => b.id !== bookId));
+    } catch (error) {
+      console.error('Error al eliminar el libro de la nube:', error);
+      setBooks(books.filter(b => b.id !== bookId));
+    }
+  };
+
   const handleAddBook = async (newBookData) => {
     try {
       const { data, error } = await supabase
@@ -84,7 +105,6 @@ export default function App() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Aseguramos que el libro recién agregado tenga la propiedad pdfUrl lista
         const newBookFormatted = {
           ...data[0],
           pdfUrl: data[0].pdfUrl || data[0].pdf_url
@@ -116,32 +136,29 @@ export default function App() {
         </div>
       ) : (
         <>
-          {/* Sidebar fijo a la izquierda que controla las vistas principales */}
           <Sidebar currentView={currentView} onViewChange={setCurrentView} />
 
-          {/* Contenido principal que cambia según la opción seleccionada */}
           <main className="flex-1 flex flex-col overflow-hidden">
             {currentView === 'library' && (
               <Dashboard 
                 books={books} 
                 onSelectBook={(book) => setCurrentBook(book)}
                 onAddBook={handleAddBook}
+                onDeleteBook={handleDeleteBook}
               />
             )}
             {currentView === 'notes' && (
-  <NotesView 
-    onSelectBookAndPage={(book, page) => {
-      // Aseguramos el formato del enlace del PDF
-      const formattedBook = {
-        ...book,
-        pdfUrl: book.pdfUrl || book.pdf_url
-      };
-      setCurrentBook(formattedBook);
-      setCurrentView('library'); // Regresa a la vista del lector con el libro abierto
-      // Opcional: puedes pasar la página inicial si tu lector lo soporta
-    }}
-  />
-)}
+              <NotesView 
+                onSelectBookAndPage={(book, page) => {
+                  const formattedBook = {
+                    ...book,
+                    pdfUrl: book.pdfUrl || book.pdf_url
+                  };
+                  setCurrentBook(formattedBook);
+                  setCurrentView('library');
+                }}
+              />
+            )}
           </main>
         </>
       )}
