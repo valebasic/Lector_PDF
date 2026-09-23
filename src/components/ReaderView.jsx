@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import BookIndexModal from './BookIndexModal';
+import { supabase } from '../supabaseClient';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-// --- Helpers de almacenamiento local (persisten por libro) ---
+// --- Helpers de almacenamiento local (respaldo) ---
 const loadFromStorage = (key, fallback) => {
   try {
     const saved = localStorage.getItem(key);
@@ -35,15 +36,14 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
   const [showHighlights, setShowHighlights] = useState(true);
   const [pageDimensions, setPageDimensions] = useState({ width: 0, height: 0 });
 
-  // Identificador seguro para el libro (usando id o el título como respaldo)
   const bookKey = book?.id || encodeURIComponent(book?.title || 'default_book');
 
-  // Notas, subrayados y marcadores manuales, persistentes por libro
-  const [notes, setNotes] = useState(() => loadFromStorage(`lector_pdf_notes_${bookKey}`, []));
+  // Notas (Sincronizadas con Supabase + Respaldo local), Subrayados y Marcadores
+  const [notes, setNotes] = useState([]);
   const [highlights, setHighlights] = useState(() => loadFromStorage(`lector_pdf_highlights_${bookKey}`, []));
   const [bookmarks, setBookmarks] = useState(() => loadFromStorage(`lector_pdf_bookmarks_${bookKey}`, []));
 
-  // Índice nativo del PDF (tabla de contenido embebida)
+  // Índice nativo del PDF
   const [outline, setOutline] = useState([]);
   const [outlineLoading, setOutlineLoading] = useState(true);
 
@@ -54,13 +54,53 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
   const textLayerRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Recarga notas/subrayados/marcadores si el libro cambia mientras el
-  // componente sigue montado (bookKey solo se evaluaba una vez antes)
+  // --- Validación de Racha de Lectura Real ---
+  const registrarActividadLectura = () => {
+    const today = new Date().toDateString();
+    const lastActive = localStorage.getItem('lector_last_active_date');
+    let currentStreak = Number(localStorage.getItem('lector_reading_streak') || 1);
+
+    if (lastActive !== today) {
+      if (lastActive) {
+        const lastDate = new Date(lastActive);
+        const diffTime = Math.abs(new Date(today) - lastDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+          currentStreak += 1; // Incrementa la racha si leyó ayer y hoy avanzó página
+        } else if (diffDays > 1) {
+          currentStreak = 1; // Se reinicia si dejó pasar más de un día sin leer
+        }
+      } else {
+        currentStreak = 1;
+      }
+      localStorage.setItem('lector_reading_streak', currentStreak);
+      localStorage.setItem('lector_last_active_date', today);
+    }
+  };
+
+  // Cargar notas desde Supabase o almacenamiento local si cambia el libro
   useEffect(() => {
-    setNotes(loadFromStorage(`lector_pdf_notes_${bookKey}`, []));
+    const fetchNotes = async () => {
+      if (book?.id && !book.id.toString().startsWith('default')) {
+        const { data, error } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('book_id', book.id)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setNotes(data);
+          return;
+        }
+      }
+      setNotes(loadFromStorage(`lector_pdf_notes_${bookKey}`, []));
+    };
+
+    fetchNotes();
     setHighlights(loadFromStorage(`lector_pdf_highlights_${bookKey}`, []));
     setBookmarks(loadFromStorage(`lector_pdf_bookmarks_${bookKey}`, []));
-  }, [bookKey]);
+  }, [bookKey, book?.id]);
 
   useEffect(() => {
     const source = book?.pdfUrl || book?.url;
@@ -85,9 +125,7 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     );
   }, [book]);
 
-  // Extrae el índice (tabla de contenido) real de cada PDF, resolviendo
-  // cada destino a un número de página. Si el PDF no trae índice propio,
-  // se deja vacío y el usuario puede construir sus propios marcadores.
+  // Extraer el índice nativo del PDF
   useEffect(() => {
     if (!pdfDoc) {
       setOutline([]);
@@ -143,8 +181,7 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     };
   }, [pdfDoc]);
 
-  // Renderiza la página (canvas) y, encima, una capa de texto invisible
-  // pero seleccionable, necesaria para poder subrayar.
+  // Renderizado de página y capa de texto
   useEffect(() => {
     if (!pdfDoc) return;
     let isCancelled = false;
@@ -172,8 +209,6 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
 
       page.getTextContent().then((textContent) => {
         if (isCancelled) return;
-        // Requiere pdfjs-dist ^3.4 (exporta renderTextLayer). Si usas una
-        // versión distinta, ajusta este bloque según su API de capa de texto.
         if (typeof pdfjsLib.renderTextLayer === 'function') {
           textLayerTask = pdfjsLib.renderTextLayer({
             textContentSource: textContent,
@@ -197,6 +232,10 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     const maxPages = totalPages > 0 ? totalPages : 1;
     if (newPage >= 1 && newPage <= maxPages) {
       setCurrentPage(newPage);
+      
+      // Valida y suma racha de estudio al avanzar de página de forma activa
+      registrarActividadLectura();
+
       const calculatedProgress = Math.round((newPage / maxPages) * 100);
       if (onUpdateProgress && book?.id) {
         onUpdateProgress(book.id, calculatedProgress);
@@ -204,7 +243,6 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     }
   };
 
-  // Navegación por teclado (evita conflictos si estás escribiendo en un campo)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
@@ -220,28 +258,59 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentPage, totalPages]);
 
-  // --- Notas ---
-  const handleAddNote = () => {
+  // --- Notas con Supabase ---
+  const handleAddNote = async () => {
     if (!currentNoteText.trim()) return;
-    const newNote = {
-      id: Date.now(),
+
+    // Registrar actividad en la racha también al guardar notas
+    registrarActividadLectura();
+
+    const newNotePayload = {
+      book_id: book?.id && !book.id.toString().startsWith('default') ? book.id : null,
       page: currentPage,
       text: currentNoteText.trim(),
-      date: new Date().toLocaleDateString()
+      color: selectedColor
     };
-    const updated = [newNote, ...notes];
-    setNotes(updated);
-    saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+
+    if (newNotePayload.book_id) {
+      const { data, error } = await supabase
+        .from('notes')
+        .insert([newNotePayload])
+        .select();
+
+      if (!error && data) {
+        setNotes([data[0], ...notes]);
+      } else {
+        console.error('Error al guardar nota en Supabase:', error);
+      }
+    } else {
+      const localNote = { id: Date.now(), date: new Date().toLocaleDateString(), ...newNotePayload };
+      const updated = [localNote, ...notes];
+      setNotes(updated);
+      saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+    }
+
     setCurrentNoteText('');
   };
 
-  const handleDeleteNote = (id) => {
-    const updated = notes.filter((n) => n.id !== id);
-    setNotes(updated);
-    saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+  const handleDeleteNote = async (id) => {
+    if (book?.id && !book.id.toString().startsWith('default')) {
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', id);
+
+      if (!error) {
+        setNotes(notes.filter((n) => n.id !== id));
+      }
+    } else {
+      const updated = notes.filter((n) => n.id !== id);
+      setNotes(updated);
+      saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+    }
   };
 
-  // --- Subrayados: se capturan a partir de la selección real de texto ---
+  // --- Subrayados ---
   const handleTextLayerMouseUp = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
@@ -257,8 +326,6 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     const clientRects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
     if (clientRects.length === 0) return;
 
-    // Guardamos cada recuadro como fracción del tamaño de página, para que
-    // el subrayado se mantenga alineado sin importar el zoom actual.
     const rects = clientRects.map((r) => ({
       left: (r.left - containerRect.left) / containerRect.width,
       top: (r.top - containerRect.top) / containerRect.height,
@@ -286,7 +353,7 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
     saveToStorage(`lector_pdf_highlights_${bookKey}`, updated);
   };
 
-  // --- Marcadores manuales (respaldo cuando el PDF no trae índice propio) ---
+  // --- Marcadores manuales ---
   const handleAddBookmark = (title) => {
     const label = (title && title.trim()) || `Página ${currentPage}`;
     const newBookmark = { id: Date.now(), title: label, page: currentPage };
@@ -361,10 +428,10 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#7c7161]">Paleta de Subrayado</h3>
             <div className="flex gap-3">
               {[
-                { color: '#fef08a', border: 'border-yellow-300' },
-                { color: '#bbf7d0', border: 'border-green-300' },
-                { color: '#bfdbfe', border: 'border-blue-300' },
-                { color: '#fbcfe8', border: 'border-pink-300' }
+                { color: '#efbb4b', border: 'border-yellow-300' },
+                { color: '#87A6BD', border: 'border-green-300' },
+                { color: '#c6b3d0', border: 'border-blue-300' },
+                { color: '#c1b177', border: 'border-pink-300' }
               ].map((item, idx) => (
                 <button
                   key={idx}
@@ -462,11 +529,11 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
           )}
         </main>
 
-        {/* Panel derecho: Notas y Cuaderno */}
+        {/* Panel derecho: Notas y Cuaderno en la nube */}
         {showNotes && (
           <aside className="w-80 bg-[#f3efe6]/70 border-l border-[#e6decb] p-4 flex flex-col gap-4 overflow-y-auto flex-shrink-0">
             <div className="flex justify-between items-center border-b border-[#e6decb] pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#7c7161]">Notas del libro</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#7c7161]">Notas en la nube</h3>
               <span className="text-[10px] bg-[#e6dbcc] px-2 py-0.5 rounded-md font-medium text-[#5c5346]">Pág. {currentPage}</span>
             </div>
 
@@ -481,11 +548,11 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
                 onClick={handleAddNote}
                 className="w-full py-2 bg-[#d4a373] hover:bg-[#c39263] text-white rounded-xl text-xs font-semibold transition-colors shadow-xs cursor-pointer"
               >
-                + Agregar nota
+                + Guardar nota
               </button>
             </div>
 
-            {/* Listado de notas guardadas */}
+            {/* Listado de notas */}
             <div className="flex flex-col gap-2.5 mt-2 overflow-y-auto max-h-[45vh]">
               {notes.length === 0 ? (
                 <p className="text-[11px] text-[#8c8171] text-center italic py-4">No hay notas guardadas todavía.</p>

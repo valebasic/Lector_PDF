@@ -1,139 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import Sidebar from '../components/Sidebar';
+import React, { useState } from 'react';
 import BookCard from '../components/BookCard';
 import AddBookModal from '../components/AddBookModal';
-import ReaderView from '../components/ReaderView';
 
-export default function Dashboard() {
-  const [books, setBooks] = useState(() => {
-    const savedBooks = localStorage.getItem('lector_pdf_books');
-    if (savedBooks) {
-      try {
-        return JSON.parse(savedBooks);
-      } catch (e) {
-        console.error("Error al leer localStorage", e);
-      }
-    }
-    return [
-      { id: 1, title: 'Clean Code: A Handbook of Agile Software Craftsmanship', author: 'Robert C. Martin', progress: 65, status: 'Leyendo' },
-      { id: 2, title: 'Arquitectura Limpia: Guía para el diseño y desarrollo software', author: 'Robert C. Martin', progress: 30, status: 'Leyendo' },
-      { id: 3, title: 'Ingeniería de Software (Pressman 7ota Ed.)', author: 'Roger S. Pressman', progress: 10, status: 'Por leer' },
-    ];
-  });
-
+export default function Dashboard({ books, onSelectBook, onAddBook }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeBook, setActiveBook] = useState(null);
   const [currentFilter, setCurrentFilter] = useState('Todos');
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para la barra de búsqueda
 
-  useEffect(() => {
-    localStorage.setItem('lector_pdf_books', JSON.stringify(books));
-  }, [books]);
-
-  const handleAddBook = (newBook) => {
-    setBooks([newBook, ...books]);
-  };
-
-  // Filtrar libros por categoría y por texto de búsqueda
-  const filteredBooks = books.filter((book) => {
-    const matchesCategory = currentFilter === 'Todos' || book.status === currentFilter;
-    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (book.author && book.author.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesCategory && matchesSearch;
+  // Filtrar libros según la categoría seleccionada
+  const filteredBooks = books.filter(book => {
+    if (currentFilter === 'Leyendo') return book.progress > 0 && book.progress < 100;
+    if (currentFilter === 'Terminados') return book.progress === 100;
+    return true; // 'Todos'
   });
-
-  if (activeBook) {
-    return (
-      <ReaderView 
-        book={activeBook} 
-        onBack={() => setActiveBook(null)} 
-        onUpdateProgress={(bookId, newProgress) => {
-          setBooks(books.map(b => b.id === bookId ? { ...b, progress: newProgress } : b));
-        }}
-      />
-    );
-  }
 
   return (
-    <div className="flex bg-[#f9f6f0] min-h-screen text-[#4a4033] font-sans">
-      <Sidebar />
-
-      <main className="flex-1 p-10 overflow-y-auto">
-        {/* Cabecera con barra de búsqueda funcional */}
-        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-[#f3efe6] p-6 rounded-3xl border border-[#e6decb]">
+    <div className="flex-1 p-8 overflow-y-auto bg-[#f9f6f0]">
+      <div className="max-w-4xl mx-auto flex flex-col gap-6">
+        {/* Encabezado con saludo cozy */}
+        <div className="bg-[#f3efe6] border border-[#e6decb] p-6 rounded-3xl flex justify-between items-center shadow-xs">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-[#3d3326] flex items-center gap-2">
-              ¡Hola, Laura! <span>🍂</span>
-            </h2>
-            <p className="text-[#7c7161] text-xs mt-1">Tu espacio personal para leer, aprender y soñar.</p>
+            <h2 className="text-lg font-bold text-[#3d3326]">¡Hola, Laura! 🍂</h2>
+            <p className="text-xs text-[#7c7161] mt-1">Tu espacio personal para leer, aprender y soñar.</p>
           </div>
-
-          {/* Input de Búsqueda */}
-          <div className="w-full md:w-72 relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#7c7161]">🔍</span>
-            <input 
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar libros, autores..."
-              className="w-full bg-[#faf6f0] border border-[#e6decb] rounded-2xl pl-10 pr-4 py-2.5 text-xs text-[#3d3326] focus:outline-none focus:border-[#d4a373] transition-colors shadow-sm"
-            />
-          </div>
-          
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
-            className="px-5 py-2.5 rounded-2xl bg-[#d4a373] hover:bg-[#c39263] text-white font-semibold text-xs transition-all shadow-sm flex items-center gap-2 flex-shrink-0"
+            className="bg-[#3d3326] text-[#f9f6f0] px-4 py-2.5 rounded-2xl text-xs font-semibold hover:bg-[#5c5346] transition-colors cursor-pointer shadow-xs"
           >
-            <span>➕</span> Agregar libro
+            + Añadir libro
           </button>
-        </header>
+        </div>
 
-        {/* Sección de Mi Biblioteca con pestañas de filtro */}
-        <section className="mb-6 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-[#3d3326] flex items-center gap-2">
-            Mi biblioteca ({filteredBooks.length}) <span>♡</span>
-          </h3>
-          
-          <div className="flex gap-2 bg-[#f3efe6] p-1.5 rounded-2xl border border-[#e6decb]">
-            {['Todos', 'Leyendo', 'Por leer', 'Terminados'].map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setCurrentFilter(filter)}
-                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  currentFilter === filter 
-                    ? 'bg-[#d4a373] text-white shadow-sm' 
-                    : 'text-[#7c7161] hover:text-[#3d3326]'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+        {/* Sección de la biblioteca */}
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-bold text-[#3d3326]">Mi biblioteca ({books.length}) 🤍</h3>
           </div>
-        </section>
 
-        {/* Cuadrícula de libros filtrados */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-          {filteredBooks.length > 0 ? (
-            filteredBooks.map((book) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredBooks.map((book) => (
               <BookCard 
                 key={book.id} 
-                book={book}
-                onRead={(selectedBook) => setActiveBook(selectedBook)} 
+                book={book} 
+                onSelect={() => onSelectBook(book)} 
               />
-            ))
-          ) : (
-            <div className="col-span-full py-12 text-center bg-[#f3efe6] rounded-3xl border border-[#e6decb]">
-              <p className="text-sm text-[#7c7161]">No se encontraron libros que coincidan con tu búsqueda.</p>
-            </div>
-          )}
-        </section>
-      </main>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      <AddBookModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onAddBook={handleAddBook} 
-      />
+      {isModalOpen && (
+        <AddBookModal 
+          onClose={() => setIsModalOpen(false)} 
+          onAdd={onAddBook} 
+        />
+      )}
     </div>
   );
 }

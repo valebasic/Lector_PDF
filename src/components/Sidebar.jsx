@@ -1,52 +1,79 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
-export default function Sidebar() {
+export default function Sidebar({ currentView, onViewChange }) {
+  const [streak, setStreak] = useState(1);
+
+  // Calcular o cargar racha de lectura
+  useEffect(() => {
+    const lastActive = localStorage.getItem('lector_last_active_date');
+    const today = new Date().toDateString();
+    let currentStreak = Number(localStorage.getItem('lector_reading_streak') || 1);
+
+    if (lastActive !== today) {
+      if (lastActive) {
+        const lastDate = new Date(lastActive);
+        const diffTime = Math.abs(new Date(today) - lastDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+          currentStreak += 1; // Incrementa la racha si leyó ayer
+        } else if (diffDays > 1) {
+          currentStreak = 1; // Reinicia si pasó más de un día
+        }
+      }
+      localStorage.setItem('lector_reading_streak', currentStreak);
+      localStorage.setItem('lector_last_active_date', today);
+    }
+    setStreak(currentStreak);
+  }, []);
+
   return (
-    <aside className="w-64 h-screen bg-[#f3efe6] border-r border-[#e6decb] flex flex-col justify-between p-6 text-[#5c5346] shadow-sm">
-      {/* Sección Superior: Logo y Navegación */}
-      <div>
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <div className="w-9 h-9 rounded-xl bg-[#e6dbcc] flex items-center justify-center text-[#4a4033] shadow-sm">
-            <span className="text-lg">📚</span>
+    <aside className="w-64 bg-[#f3efe6] border-r border-[#e6decb] p-6 flex flex-col justify-between flex-shrink-0 select-none">
+      <div className="flex flex-col gap-6">
+        {/* Logo / Título */}
+        <div className="flex items-center gap-3 px-2">
+          <span className="text-2xl">🍂</span>
+          <div>
+            <h1 className="text-sm font-bold text-[#3d3326]">Lector Cozy</h1>
+            <p className="text-[10px] text-[#7c7161]">Estudio & Lectura</p>
           </div>
-          <h1 className="text-xl font-bold tracking-wide text-[#3d3326]">
-            LectorPDF
-          </h1>
         </div>
 
-        <nav className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold tracking-wider text-[#9e917d] uppercase px-4 mb-1">Menú</span>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#e6dbcc]/60 text-[#3d3326] font-semibold transition-all">
+        {/* Menú de navegación */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#9c9181] px-3 mb-1">Menú</span>
+          
+          <button
+            onClick={() => onViewChange('library')}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+              currentView === 'library'
+                ? 'bg-[#e6dbcc] text-[#3d3326] shadow-xs'
+                : 'text-[#7c7161] hover:bg-[#eae3d5] hover:text-[#3d3326]'
+            }`}
+          >
             <span>🏠</span> Biblioteca
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[#e6dbcc]/30 text-[#6e6252] transition-all">
-            <span>📖</span> Leyendo
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[#e6dbcc]/30 text-[#6e6252] transition-all">
-            <span>⏳</span> Por leer
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[#e6dbcc]/30 text-[#6e6252] transition-all">
-            <span>✅</span> Terminados
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[#e6dbcc]/30 text-[#6e6252] transition-all">
-            <span>📝</span> Notas
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[#e6dbcc]/30 text-[#6e6252] transition-all">
-            <span>⭐</span> Favoritos
-          </a>
-        </nav>
+          </button>
+
+          <button
+            onClick={() => onViewChange('notes')}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+              currentView === 'notes'
+                ? 'bg-[#e6dbcc] text-[#3d3326] shadow-xs'
+                : 'text-[#7c7161] hover:bg-[#eae3d5] hover:text-[#3d3326]'
+            }`}
+          >
+            <span>📓</span> Notas en la nube
+          </button>
+        </div>
       </div>
 
-      {/* Sección Inferior: Perfil de Usuario tipo tarjeta */}
-      <div className="p-3 rounded-2xl bg-[#eef5e9] border border-[#d6ebd0] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#c8e6c9] flex items-center justify-center font-bold text-[#2e7d32]">
-            LB
-          </div>
-          <div>
-            <p className="text-xs font-bold text-[#2e7d32]">Laura B.</p>
-            <p className="text-[10px] text-[#558b2f]">Amante de los libros</p>
-          </div>
+      {/* Widget de Racha de Lectura */}
+      <div className="bg-[#faf6f0] border border-[#e6decb] p-4 rounded-2xl flex items-center gap-3 shadow-xs">
+        <span className="text-2xl animate-bounce">🔥</span>
+        <div>
+          <h4 className="text-xs font-bold text-[#3d3326]">Racha de estudio</h4>
+          <p className="text-[11px] text-[#b45309] font-semibold">{streak} {streak === 1 ? 'día consecutivo' : 'días consecutivos'}</p>
         </div>
       </div>
     </aside>
