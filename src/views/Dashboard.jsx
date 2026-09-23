@@ -43,7 +43,15 @@ export default function Dashboard() {
   });
 
   if (activeBook) {
-    return <ReaderView book={activeBook} onBack={() => setActiveBook(null)} />;
+    return (
+      <ReaderView 
+        book={activeBook} 
+        onBack={() => setActiveBook(null)} 
+        onUpdateProgress={(bookId, newProgress) => {
+          setBooks(books.map(b => b.id === bookId ? { ...b, progress: newProgress } : b));
+        }}
+      />
+    );
   }
 
   return (
