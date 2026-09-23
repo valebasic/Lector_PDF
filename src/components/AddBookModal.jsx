@@ -1,18 +1,24 @@
-/// Componente para agregar un nuevo libro a la biblioteca. BOTON
+/// Componente para agregar un nuevo libro a la biblioteca.
 import React, { useState } from 'react';
 
 export default function AddBookModal({ isOpen, onClose, onAddBook }) {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfBase64, setPdfBase64] = useState(null);
 
   if (!isOpen) return null;
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setPdfFile(file);
-      // Si el título está vacío, usamos el nombre del archivo sin la extensión .pdf por comodidad
+      // Convertimos el archivo PDF a Base64 para que sea permanente en la base de datos
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setPdfBase64(uploadEvent.target.result);
+      };
+      reader.readAsDataURL(file);
+
+      // Si el título está vacío, usamos el nombre del archivo sin la extensión .pdf
       if (!title) {
         const cleanName = file.name.replace(/\.[^/.]+$/, "");
         setTitle(cleanName);
@@ -22,29 +28,20 @@ export default function AddBookModal({ isOpen, onClose, onAddBook }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("¡El botón fue presionado con éxito!"); // <--- Agrega esto temporalmente
-    
-    if (!title.trim()) {
-      console.log("El título está vacío");
-      return;
-    }
-    // Creamos una URL temporal local para el archivo PDF seleccionado
-    const pdfUrl = pdfFile ? URL.createObjectURL(pdfFile) : null;
+    if (!title.trim() || !pdfBase64) return;
 
     const newBook = {
-      id: Date.now(),
       title,
       author: author || 'Autor desconocido',
       progress: 0,
       status: 'Por leer',
-      pdfUrl: pdfUrl, // Guardamos la referencia al PDF
-      fileName: pdfFile ? pdfFile.name : 'Documento.pdf'
+      pdfUrl: pdfBase64 // Pasamos el string permanente en Base64
     };
 
     onAddBook(newBook);
     setTitle('');
     setAuthor('');
-    setPdfFile(null);
+    setPdfBase64(null);
     onClose();
   };
 
@@ -55,7 +52,7 @@ export default function AddBookModal({ isOpen, onClose, onAddBook }) {
           <h3 className="text-xl font-bold text-[#3d3326]">Agregar Nuevo PDF</h3>
           <button 
             onClick={onClose}
-            className="text-[#7c7161] hover:text-[#3d3326] text-xl font-bold"
+            className="text-[#7c7161] hover:text-[#3d3326] text-xl font-bold cursor-pointer"
           >
             &times;
           </button>
@@ -100,13 +97,13 @@ export default function AddBookModal({ isOpen, onClose, onAddBook }) {
             <button 
               type="button" 
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-[#e6dbcc] hover:bg-[#d8ccbc] text-xs font-semibold transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-[#e6dbcc] hover:bg-[#d8ccbc] text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
-              className="px-5 py-2.5 rounded-xl bg-[#d4a373] hover:bg-[#c39263] text-white font-semibold text-xs transition-colors shadow-sm"
+              className="px-5 py-2.5 rounded-xl bg-[#d4a373] hover:bg-[#c39263] text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer"
             >
               Guardar PDF
             </button>
