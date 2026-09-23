@@ -26,7 +26,12 @@ export default function App() {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        setBooks(data);
+        // Mapeamos para asegurarnos de que pdfUrl exista para el visor
+        const formattedBooks = data.map(b => ({
+          ...b,
+          pdfUrl: b.pdfUrl || b.pdf_url
+        }));
+        setBooks(formattedBooks);
       } else {
         setBooks([
           {
@@ -79,7 +84,12 @@ export default function App() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        setBooks([data[0], ...books]);
+        // Aseguramos que el libro recién agregado tenga la propiedad pdfUrl lista
+        const newBookFormatted = {
+          ...data[0],
+          pdfUrl: data[0].pdfUrl || data[0].pdf_url
+        };
+        setBooks([newBookFormatted, ...books]);
       }
     } catch (error) {
       console.error('Error al guardar el libro en Supabase:', error);
