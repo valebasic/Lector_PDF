@@ -22,8 +22,12 @@ export default function AddBookModal({ isOpen, onClose, onAddBook }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
+    console.log("¡El botón fue presionado con éxito!"); // <--- Agrega esto temporalmente
+    
+    if (!title.trim()) {
+      console.log("El título está vacío");
+      return;
+    }
     // Creamos una URL temporal local para el archivo PDF seleccionado
     const pdfUrl = pdfFile ? URL.createObjectURL(pdfFile) : null;
 

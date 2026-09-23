@@ -272,6 +272,13 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
       color: selectedColor
     };
 
+    const saveLocally = () => {
+      const localNote = { id: Date.now(), date: new Date().toLocaleDateString(), ...newNotePayload };
+      const updated = [localNote, ...notes];
+      setNotes(updated);
+      saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+    };
+
     if (newNotePayload.book_id) {
       const { data, error } = await supabase
         .from('notes')
@@ -281,13 +288,13 @@ export default function ReaderView({ book, onBack, onUpdateProgress }) {
       if (!error && data) {
         setNotes([data[0], ...notes]);
       } else {
-        console.error('Error al guardar nota en Supabase:', error);
+        // Si Supabase falla (por ejemplo, el libro no existe en la tabla "books"),
+        // no perdemos la nota: la guardamos localmente como respaldo.
+        console.error('Error al guardar nota en Supabase, se guarda localmente como respaldo:', error);
+        saveLocally();
       }
     } else {
-      const localNote = { id: Date.now(), date: new Date().toLocaleDateString(), ...newNotePayload };
-      const updated = [localNote, ...notes];
-      setNotes(updated);
-      saveToStorage(`lector_pdf_notes_${bookKey}`, updated);
+      saveLocally();
     }
 
     setCurrentNoteText('');

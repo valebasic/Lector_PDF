@@ -34,24 +34,46 @@ export default function Dashboard({ books, onSelectBook, onAddBook }) {
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-[#3d3326]">Mi biblioteca ({books.length}) 🤍</h3>
+            <div className="flex gap-2">
+              {['Todos', 'Leyendo', 'Terminados'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setCurrentFilter(filter)}
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer ${
+                    currentFilter === filter
+                      ? 'bg-[#3d3326] text-[#f9f6f0]'
+                      : 'bg-[#e6dbcc] text-[#5c5346] hover:bg-[#d8ccbc]'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredBooks.map((book) => (
-              <BookCard 
-                key={book.id} 
-                book={book} 
-                onSelect={() => onSelectBook(book)} 
-              />
-            ))}
+            {filteredBooks.length === 0 ? (
+              <div className="col-span-full text-center py-10 bg-[#f3efe6] rounded-3xl border border-[#e6decb]">
+                <p className="text-xs text-[#7c7161]">No hay libros en esta categoría todavía.</p>
+              </div>
+            ) : (
+              filteredBooks.map((book) => (
+                <BookCard 
+                  key={book.id} 
+                  book={book} 
+                  onRead={() => onSelectBook(book)} 
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
 
       {isModalOpen && (
         <AddBookModal 
+          isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)} 
-          onAdd={onAddBook} 
+          onAddBook={onAddBook} 
         />
       )}
     </div>
